@@ -47,7 +47,6 @@ int processString(char* str, char** parsed, char** parsedFile)
 {
     char* strPipe[2];
     int redirect = 0;
-  
     redirect = parsePipe(str, strPipe);
   
     if (redirect) {
@@ -71,12 +70,13 @@ void execArgs(char** arg, char* fileName)
         if(fileName == NULL) {
             execv("/bin/ls", arg);
         } else {
-            int fo = open(fileName, O_WRONLY | O_APPEND);
-            if(fo < 0) {
-                printf("Error: Cannot Open File %s.", fileName);
-            }
-            dup2(fo, 1);
-            execv("/bin/ls", arg);
+            fclose(stdout);
+            FILE* fp = fopen(fileName, "w");
+            if(fp == NULL) {
+                printf("Cannot write to file %s.", fileName);
+            } else {
+                execv("/bin/ls", arg);
+            }            
         }
         _exit(0);
     } else {
@@ -106,12 +106,10 @@ int interactive() {
         if(redirectCheck == 2) {
             //this means there is a redirect
             redirect(parsedArgs, parsedFileName[0]);
-            printf("%s",parsedFileName[0]);
         } else {
             // no redirect
             execArgs(parsedArgs, NULL);
         }
-        
     }  
 
   return 0; 
