@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+void removeTrailingWS(char* str);
 int interactive();
 int redirect(char** arg, char* fileName);
 int batch(char* fileName);
@@ -27,6 +28,7 @@ struct Node {
 struct Node* head = NULL;
 
 int alias(char* name, char* cmd) {
+    removeTrailingWS(cmd);
     // struct Node* item = (struct Node*)malloc(sizeof(struct Node));
     // item->alias = name;
     // item->func = cmd;
@@ -72,7 +74,11 @@ int freeAll(struct Node* n) {
 
 int containsAlias(struct Node* n, char* name) {
         while (n != NULL) {
-            if (strstr(name, n->alias) != NULL) {
+            char * dummy = malloc(100);
+            strcpy(dummy,n->alias);
+            removeTrailingWS(dummy);
+            removeTrailingWS(name);
+            if (strcmp(name, n->alias) == 0) {
                 return 1;
             }
             n = n->next;
@@ -122,7 +128,7 @@ int replace(struct Node* n, char* alias, char* func) {
             }
         }
         return 1;
-    }
+    }    
 
             
 
@@ -130,7 +136,7 @@ int findFunction(struct Node* n, char* name, char* cmd) {
         while (n != NULL) {
             char* dummy = malloc(50);
             strcpy(dummy, n->alias);
-            if (strstr(n->alias,name) != NULL) {
+            if (strcmp(name,n->alias) == 0) {
                 char *l = malloc(sizeof(n->func)+1);
                 strcpy(cmd,n->func);
                 return 1;
@@ -169,10 +175,9 @@ int parsePipe(char* string, char** strpiped)
         } if(count>1) {
             write(2, "Redirection misformatted.\n",26);
         }
-        if (strpiped[1] == NULL || *strpiped[1] == '\n') {
+        if (strpiped[1] == NULL || *strpiped[1] == '\n' || strlen(strpiped[0]) == 0) {
             write(2, "Redirection misformatted.\n",26);
-        }
-        
+        }        
         else {
             return 1;
         }
@@ -220,8 +225,7 @@ void parse(char* str, char** parsed)
         //     break;
         // }
         parsed[i] = strsep(&str, " ");
-        if (parsed[i] == NULL)
-            break;
+        if (parsed[i] == NULL) break;
         // if (strlen(parsed[i]) == 0) {
         //     printf("TEST23\n");
         //     i--;
@@ -233,8 +237,7 @@ void parse(char* str, char** parsed)
     }
 }
   
-int processString(char* str, char** parsed, char** parsedFile)
-{
+int processString(char* str, char** parsed, char** parsedFile) {
     char* strPipe[2];
     char* cmd;
     int redirect = 0;
@@ -249,8 +252,7 @@ int processString(char* str, char** parsed, char** parsedFile)
     }
 }
 
-void execArgs(char** arg, char* fileName)
-{
+void execArgs(char** arg, char* fileName) {
     pid_t pid = fork(); 
     if (pid == -1) {
         printf("Failed forking child\n");
@@ -263,13 +265,16 @@ void execArgs(char** arg, char* fileName)
                 write(2,": Command not found.\n",21);
             }
         } else {
+            int save_out = dup(STDOUT_FILENO);
             fclose(stdout);
             FILE* fp = fopen(fileName, "w+");
             if(fp == NULL) {
                 printf("Cannot write to file %s.", fileName);
             } else {
                 execv(arg[0], arg);
-            }            
+            }
+            fclose(fp);
+            dup2(save_out, STDOUT_FILENO);        
         }
         _exit(0);
     } else {
@@ -294,8 +299,16 @@ int main(int argc, char *argv[]) {
 int parseAlias(char* str) {
     strsep(&str, " ");
     char * aliasName = strsep(&str, " ");
-    if(checkAlias(aliasName) == 0) {  
-        alias(aliasName, str);
+    if(str!=NULL){
+        removeTrailingWS(aliasName);
+        if(checkAlias(aliasName) == 0) {  
+            alias(aliasName, str);
+        }
+    } else {
+        char* toPrint = malloc(50);
+        findFunction(head,aliasName,toPrint);
+        printf("%s %s\n",aliasName,toPrint);
+        fflush(stdout);
     }
     return 0; 
 }
@@ -306,6 +319,7 @@ int runAlias(char* name) {
         return 0;
     }
     if(containsAlias(head, name) == 1) {
+        removeTrailingWS(name);
         char *cmd = malloc(sizeof(char)*100);
         findFunction(head, name, cmd);
         char* runArgs[100];
@@ -347,14 +361,16 @@ int hasAlpha(char* str) {
 }
 
 int runCommand(char* str) {
+    char * dummy = malloc(50);
+    strcpy(dummy,str);
+    trimLeading(dummy);
+    if(strlen(dummy)==0) return 0;
     if(str==NULL) return 0;
     trimLeading(str);
     if(strcmp("alias",str)==0){
         runAlias(str);
     } else if(containsAlias(head,str)==1) {
         runAlias(str);
-    } else if(strstr(str,"alias") != NULL) {
-        parseAlias(str);
     } else if (strstr(str, "unalias") != NULL) {
         char* str2 = str;
         strsep(&str2, " ");
@@ -363,6 +379,8 @@ int runCommand(char* str) {
         } else {
         //add print for alias not tere
         }
+    } else if(strstr(str,"alias") != NULL) {
+        parseAlias(str);
     } else {
         char* parsedArgs[100];
         char* parsedFileName[2];
@@ -406,15 +424,18 @@ int batch(char* fileName) {
         _exit(1);
     }
     char str[512];
+    str[511] = 'x';
     while (fgets(str,512,fptr) != NULL) {
+        if(str[sizeof str - 1] == '\0' && str[sizeof str - 2] != '\n') _exit(0);
         printf("%s", str);
         fflush(stdout);
         if (strstr(str,"exit") != NULL) {
             freeAll(head);
             _exit(0);
         } else if(str != NULL) {
-            int check = hasAlpha(str);
-            if(check == 1) runCommand(str);
+            // int check = hasAlpha(str);
+            // if(check == 1) 
+            runCommand(str);
         }
     }
     _exit(0);
