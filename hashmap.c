@@ -8,27 +8,21 @@
 #define FNV_OFFSET 14695981039346656037UL
 #define FNV_PRIME 1099511628211UL
 
-mutex_t reader;
-mutex_t writer;
-
 HashMap* MapInit(void)
 {
     HashMap* hashmap = (HashMap*) malloc(sizeof(HashMap));
     hashmap->contents = (MapPair**) calloc(MAP_INIT_CAPACITY, sizeof(MapPair*));
     hashmap->capacity = MAP_INIT_CAPACITY;
     hashmap->size = 0;
-    hashmap->hashLock;
     return hashmap;
 }
 
 void MapPut(HashMap* hashmap, char* key, void* value, int value_size)
 {
-    pthread_mutex_lock(&writer);
     if (hashmap->size > (hashmap->capacity / 2)) {
 	if (resize_map(hashmap) < 0) {
 	    exit(0);
 	}
-        pthread_mutex_unlock(&writer);
     }
     
     MapPair* newpair = (MapPair*) malloc(sizeof(MapPair));
@@ -54,11 +48,9 @@ void MapPut(HashMap* hashmap, char* key, void* value, int value_size)
     // key not found in hashmap, h is an empty slot
     hashmap->contents[h] = newpair;
     hashmap->size += 1;
-    pthread_mutex_unlock(&writer);
 }
 
 char* MapGet(HashMap* hashmap, char* key) {  
-    pthread_mutex_lock(&writer);  
     int h = Hash(key, hashmap->capacity);
     while (hashmap->contents[h] != NULL) {
 	if (!strcmp(key, hashmap->contents[h]->key)) {
@@ -69,7 +61,6 @@ char* MapGet(HashMap* hashmap, char* key) {
 	    h = 0;
 	}
     }
-    pthread_mutex_unlock(&writer);
     return NULL;
 }
 
@@ -81,9 +72,7 @@ size_t MapSize(HashMap* map)
 int resize_map(HashMap* map)
 {
     MapPair** temp;
-    pthread_mutex_lock(&hashmap->hashLock)
-    size_t newcapacity = map->capacity * 2; // double the capacity
-    pthread_mutex_unlock(&hashmap->hashLock)
+    size_t newcapacity = map->capacity * 2; 
 
     // allocate a new hashmap table
     temp = (MapPair**) calloc(newcapacity, sizeof(MapPair*));
@@ -113,10 +102,8 @@ int resize_map(HashMap* map)
     // free the old table
     free(map->contents);
     // update contents with the new table, increase hashmap capacity
-    pthread_mutex_lock(&hashmap->hashLock)
     map->contents = temp;
     map->capacity = newcapacity;
-    pthread_mutex_unlock(&hashmap->hashLock)
     return 0;
 }
 
