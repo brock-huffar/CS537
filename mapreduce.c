@@ -14,10 +14,8 @@ Partitioner partitioner;
 int reducer_count;
 pthread_mutex_t fileCountMutex;
 int mappedCounter = 0;
-//char ** fileNames;
 int fileCount;
 struct files* fileNames;
-
 struct files {
 	char *name;
 };
@@ -56,11 +54,11 @@ int compareStr(const void* str1, const void* str2) {
 }
 
 int compareFiles(const void* p1, const void* p2) {
-	struct files *f1 = (struct files*) p1;
-	struct files *f2 = (struct files*) p2;
+	struct files* file1 = (struct files *) p1;
+	struct files* file2 = (struct files *) p2;
 	struct stat st1, st2;
-	stat(f1->name, &st1);
-	stat(f2->name, &st2);
+	stat(file1->name, &st1);
+	stat(file2->name, &st2);
 	long int size1 = st1.st_size;
 	long int size2 = st2.st_size;
 	return (size1 - size2);
@@ -110,7 +108,6 @@ void* reducerThreads(void* arg1){
         char *key = pList[partitionNum].sorted[x].key;
         (*reducer)(key,get_func,partitionNum);
     }
-
     //Free data from the heap
     for (int i = 0; i < mapCount; i++) {
         kNode *curr = pList[partitionNum].map[i].head;
@@ -156,7 +153,6 @@ void MR_Emit(char *key, char *value) {
         }
     }
     //create a value node
-
     vNode* new_v = malloc(sizeof(vNode));
     if (new_v == NULL) {
         perror("malloc");
